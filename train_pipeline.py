@@ -2,12 +2,12 @@
 #
 import os,random
 import numpy as np
-import theano as th
-import theano.tensor as T
+# import theano as th
+# import theano.tensor as T
 from keras.utils import np_utils
 import keras.models as models
 from keras.layers import Input,merge
-from keras.layers.core import Reshape,Dense,Dropout,Activation,Flatten,MaxoutDense
+from keras.layers.core import Reshape,Dense,Dropout,Activation,Flatten
 from keras.layers.advanced_activations import LeakyReLU
 from keras.activations import *
 from keras.layers.wrappers import TimeDistributed
@@ -17,7 +17,7 @@ from keras.layers.recurrent import LSTM
 from keras.regularizers import *
 from keras.layers.normalization import *
 from keras.optimizers import *
-from tensorflow.examples.tutorials.mnist import input_data
+# from tensorflow.examples.tutorials.mnist import input_data
 # from keras.datasets import mnist
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -25,31 +25,38 @@ import random, sys, keras
 from keras.models import Model
 from keras.utils import np_utils
 from tqdm import tqdm
+#
+
+
 import preprocessing
 from pprint import pprint as pr
+import pickle
 
+CONTEXT_WINDOW_SIZE = 3
+VECTOR_DIMENSION=100
 
 def build_model():
     # Build Generative model ...
-    nch = 200
-    g_input = Input(shape=[100])
-    H = Dense(nch*14*14, init='glorot_normal')(g_input)
-    H = BatchNormalization(mode=2)(H)
-    H = Activation('relu')(H)
-    H = Reshape( [ 14, 14,nch] )(H)
-    H = UpSampling2D(size=(2, 2))(H)
-    H = Convolution2D(int(nch/2), 3, 3, border_mode='same', init='glorot_uniform')(H)
-    H = BatchNormalization(mode=2)(H)
-    H = Activation('relu')(H)
-    H = Convolution2D(int(nch/4), 3, 3, border_mode='same', init='glorot_uniform')(H)
-    H = BatchNormalization(mode=2)(H)
-    H = Activation('relu')(H)
-    H = Convolution2D(1, 1, 1, border_mode='same', init='glorot_uniform')(H)
-    H = Reshape( [ 1,28,28] )(H)
-    g_V = Activation('sigmoid')(H)
-    generator = Model(g_input,g_V)
-    generator.compile(loss='binary_crossentropy', optimizer=opt)
-    generator.summary()
+    # nch = 200
+    # g_input = Input(shape=[100])
+    # H = Dense(nch*14*14, init='glorot_normal')(g_input)
+    # H = BatchNormalization(mode=2)(H)
+    # H = Activation('relu')(H)
+    # H = Reshape( [ 14, 14,nch] )(H)
+    # H = UpSampling2D(size=(2, 2))(H)
+    # H = Convolution2D(int(nch/2), 3, 3, border_mode='same', init='glorot_uniform')(H)
+    # H = BatchNormalization(mode=2)(H)
+    # H = Activation('relu')(H)
+    # H = Convolution2D(int(nch/4), 3, 3, border_mode='same', init='glorot_uniform')(H)
+    # H = BatchNormalization(mode=2)(H)
+    # H = Activation('relu')(H)
+    # H = Convolution2D(1, 1, 1, border_mode='same', init='glorot_uniform')(H)
+    # H = Reshape( [ 1,28,28] )(H)
+    # g_V = Activation('sigmoid')(H)
+    # generator = Model(g_input,g_V)
+    # generator.compile(loss='binary_crossentropy', optimizer=opt)
+    # generator.summary()
+    
 
     return generator
 
@@ -67,6 +74,7 @@ def plot_loss(losses):
     # plt.plot(losses["g"], label='generative loss')
     # plt.legend()
     # plt.show()
+    pass
 
 def show_sample_result():
     pass
@@ -94,31 +102,70 @@ def train_for_n(nb_epoch=5000, plt_frq=25,BATCH_SIZE=32):
             # plot_loss(losses)
             # plot_gen()
 
+def load_meta_model():
+    word_map = pickle.load(open("./model/word_map.dict","rb"))
+    vectors = pickle.load(open("./model/vectors.dict","rb"))
+    return word_map,vectors
+
+def word_mapping(word,word_map):
+    try:
+        return word_map[word]
+    except:
+        DEFAULT_MISSING_INDEX=str(len(word_map)+1)
+        return DEFAULT_MISSING_INDEX
+
+def construct_train_data(records):
+    word_map,vectors=load_meta_model()
+    DEFAULT_MISSING_INDEX=str(len(word_map)+1)
+    vectors[DEFAULT_MISSING_INDEX]=np.zeros(VECTOR_DIMENSION,dtype=float)
+
+    X = list()
+    Y = list()
+    for record in tqdm(records):
+        vectors_of_words = [vectors[word_map[it]] for it in record["content"] ]
+
+        x1 = np.zeros( (len(vectors_of_words),VECTOR_DIMENSION), dtype=float)
+        for count,word in enumerate(vectors_of_words):
+            x1[count]+=np.array(word,dtype=float)
+
+        for count,target_word in enumerate(record["key"]):
+            x2_temp = [ np.array(vectors[word_mapping(it,word_map)], dtype=float) for it in record["key"][count:0:-1] ][:CONTEXT_WINDOW_SIZE]
+            x2 = np.zeros( (CONTEXT_WINDOW_SIZE,VECTOR_DIMENSION),dtype=float)
+            for c,it in enumerate(x2_temp):
+                x2[c]+=x2_temp[c]
+
+            target_index=int(word_mapping(target_word,word_map))
+            X.append((x2,x1))
+            Y.append(target_index)
+
+
+    print("data construct okay","train data size ",len(X),len(Y))
+
+
+    return np.array(X),np.array(Y)
+
+def find_class_number():
+    word_map,vectors=load_meta_model()
+    print("class number is ",len(word_map))
+    return len(word_map)+1
+
 if __name__ == "__main__":
 
     records=preprocessing.load_labeled_data("./data/tmp.json")
-    pr(records[0:5])
+    class_number=find_class_number()
+    X,Y=construct_train_data(records)
+    total_number=len(X)
+    Y = keras.utils.to_categorical(Y, num_classes=class_number+1)
 
+    X_train = X[:int(total_number*0.9),:]
+    Y_train = Y[:int(total_number*0.9)]
+    X_test = X[int(total_number*0.9):,:]
+    Y_test = Y[int(total_number*0.9):]
 
+    print(Y_test.shape)
 
-
-    img_rows, img_cols = 28, 28
-
-    # the data, shuffled and split between train and test sets
-    mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
-    X_train = mnist.train.images[:,:]
-    y_train = mnist.train.labels[:,:]
-
-    X_test = mnist.test.images[:,:]
-    y_test = mnist.test.labels[:,:]
-
-    X_train = X_train.reshape(X_train.shape[0], 1, img_rows, img_cols)
-    X_test = X_test.reshape(X_test.shape[0], 1, img_rows, img_cols)
     X_train = X_train.astype('float32')
     X_test = X_test.astype('float32')
-    # normalize the pixel value
-    # X_train /= 255
-    # X_test /= 255
 
 
     print(np.min(X_train), np.max(X_train))

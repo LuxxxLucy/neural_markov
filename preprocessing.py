@@ -5,7 +5,9 @@ from collections import defaultdict
 import jieba
 import jieba.posseg
 import jieba.analyse
-import genism
+import gensim
+
+import pickle
 
 VECTOR_DIMENSION=100
 
@@ -39,7 +41,7 @@ def load_labeled_data(filename):
         review_content=custom_strip(review_content)
         senti= line["sentiment"]
         words=line["key"]
-        content.append( {"id":id,"name":name,"score":score,"senti":senti,"key word":words,"content":review_content} )
+        content.append( {"id":id,"name":name,"score":score,"senti":senti,"key":words,"content":review_content} )
         # key_word_extract(review_content)
     return content
 
@@ -99,17 +101,47 @@ def save_as_file(records,filename="./data/tmp.json"):
     f.close()
     return
 
-def train_w2v(sentence):
+def train_w2v(sentences):
+    word_set = set([  it for re in sentences for it in re] )
+    word_map = {word:str(c) for c,word in enumerate(word_set)}
+    sentences= [   [ word_map[word] for word in sentence] for sentence in sentences]
+
+    pr(word_map)
+    # pr(sentences)
+    voca_size=len(word_map)
+    pr(voca_size)
     model = gensim.models.Word2Vec(sentences, min_count=1,size=VECTOR_DIMENSION)
     # model.save('/tmp/mymodel')
     # new_model = gensim.models.Word2Vec.load('/tmp/mymodel')
 
-    model=model.wv
+
+    # model=model.wv
     # mapping from word to index
-    word_map = {word:c for c,word in enumerate(model)}
-    index_to_vector={ word_map[word] : model[word] for word in model}
+
+    index_to_vector=dict()
+    f_write=open("./model/vectors_txt_format.txt","w")
+    for i in range(voca_size):
+        if str(i) in model:
+            f_write.write(str(i)+":"+" ".join([str(temp) for temp in model[str(i)]])+"\n")
+            index_to_vector[str(i)]=[str(temp) for temp in model[str(i)]]
+        else:
+            print(str(i)+" is not in vocabulary")
+    f_write.close()
+    print(len(index_to_vector))
 
 
+    # save two file
+    # 1. mapping dictionary
+    # 2. vectors corresponding to  each index
+    with open("model/word_map.dict","wb") as f:
+        pickle.dump(word_map,f)
+    with open("model/vectors.dict","wb") as f:
+        pickle.dump(index_to_vector,f)
+
+    # in case of danger, save the model either
+    with open("./model/genism_model_vector.test.db","wb") as f:
+        model = gensim.models.Word2Vec(sentences,size=100,window=5, workers=4)
+        pickle.dump(model,f)
 
     return
 
@@ -125,9 +157,9 @@ if __name__ == "__main__":
     # pr(raw[0:5])
     # print(len(raw))
     #
-    records=preprocessing.load_labeled_data("./data/tmp.json")
+    records=load_labeled_data("./data/tmp.json")
     pr(records[0:5])
-    sentences=[ record["content"] for record in raw]
+    sentences=[ record["content"] for record in records]
     train_w2v(sentences)
 
     # label_data = load_labeled_data("./data/example.json")
