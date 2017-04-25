@@ -34,6 +34,7 @@ import pickle
 
 CONTEXT_WINDOW_SIZE = 3
 VECTOR_DIMENSION=100
+MAX_LENGTH=100
 
 def build_model():
     # Build Generative model ...
@@ -56,9 +57,24 @@ def build_model():
     # generator = Model(g_input,g_V)
     # generator.compile(loss='binary_crossentropy', optimizer=opt)
     # generator.summary()
-    
 
-    return generator
+    # now start building network model
+
+    input_1 = Input(shape=(3*VECTOR_DIMENSION,),name="state_context_input")
+    encoded_y = Dense(VECTOR_DIMENSION,activation='relu')(input_1)
+
+    input_2 = Input(shape=(None,VECTOR_DIMENSION),name="observation_context_input")
+    encoded_x_y = LSTM(VECTOR_DIMENSION)(input_2)
+
+    merged_vector = keras.layers.concatenate([encoded_x_y, encoded_y], axis=-1)
+    predictions= Dense(class_number+1,activation='relu',name="predictions")(merged_vector)
+
+    model = Model(inputs=[input_1,input_2],outputs=predictions)
+
+    opt = Adam(lr=1e-4)
+    model.compile(loss='binary_crossentropy',optimizer=opt)
+    model.summary()
+    return model
 
 
 def make_trainable(net, val):
@@ -126,7 +142,7 @@ def construct_train_data(records):
 
         x1 = np.zeros( (len(vectors_of_words),VECTOR_DIMENSION), dtype=float)
         for count,word in enumerate(vectors_of_words):
-            x1[count]+=np.array(word,dtype=float)
+            x1[count]+=np.asarray(word,dtype=float)
 
         for count,target_word in enumerate(record["key"]):
             x2_temp = [ np.array(vectors[word_mapping(it,word_map)], dtype=float) for it in record["key"][count:0:-1] ][:CONTEXT_WINDOW_SIZE]
@@ -135,7 +151,7 @@ def construct_train_data(records):
                 x2[c]+=x2_temp[c]
 
             target_index=int(word_mapping(target_word,word_map))
-            X.append((x2,x1))
+            X.append((x2,x1 ))
             Y.append(target_index)
 
 
@@ -162,10 +178,28 @@ if __name__ == "__main__":
     X_test = X[int(total_number*0.9):,:]
     Y_test = Y[int(total_number*0.9):]
 
-    print(Y_test.shape)
 
-    X_train = X_train.astype('float32')
-    X_test = X_test.astype('float32')
+
+    X_o = np.array([  np.vstack(np.array(it))  for it in X_train[:,0] ])
+    print(X_o.shape)
+    pr(X_o[:2])
+    X_s =  np.array([  np.concatenate(np.array(it))  for it in X_train[:,0] ])
+    print(X_s.shape)
+    pr(X_s[:2])
+
+
+
+    model=build_model()
+    model.fit({'state_context_input': X_s, 'observation_context_input': X_o},
+          {'predictions':Y_train },
+          epochs=50, batch_size=32)
+
+
+    X_o_test= X_test[:,1]
+    X_s_test= np.hstack(X_test[:,0])
+
+    score = model.evaluate({'state_context_input': X_s_test, 'observation_context_input': X_o_test},
+          {'predictions':Y_test }, batch_size=128)
 
 
     print(np.min(X_train), np.max(X_train))
@@ -180,7 +214,6 @@ if __name__ == "__main__":
     opt = Adam(lr=1e-4)
     dopt = Adam(lr=1e-3)
 
-    model=build_generative_model()
 
     ntrain = 10000
     trainidx = random.sample(range(0,X_train.shape[0]), ntrain)
