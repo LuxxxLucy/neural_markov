@@ -72,7 +72,7 @@ def build_model():
     model = Model(inputs=[input_1,input_2],outputs=predictions)
 
     opt = Adam(lr=1e-4)
-    model.compile(loss='binary_crossentropy',optimizer=opt)
+    model.compile(loss='binary_crossentropy',metrics=['accuracy'],optimizer=opt)
     model.summary()
     return model
 
@@ -182,10 +182,8 @@ if __name__ == "__main__":
 
     X_o = np.array([  np.vstack(np.array(it))  for it in X_train[:,0] ])
     print(X_o.shape)
-    pr(X_o[:2])
     X_s =  np.array([  np.concatenate(np.array(it))  for it in X_train[:,0] ])
     print(X_s.shape)
-    pr(X_s[:2])
 
 
 
@@ -195,11 +193,18 @@ if __name__ == "__main__":
           epochs=50, batch_size=32)
 
 
-    X_o_test= X_test[:,1]
-    X_s_test= np.hstack(X_test[:,0])
+    model.save('model/lstm_enc_model.h5', overwrite=True)
+    print("Saved model to disk.")
+
+
+    X_o_test = np.array([  np.vstack(np.array(it))  for it in X_test[:,0] ])
+    print(X_o.shape)
+    X_s_test =  np.array([  np.concatenate(np.array(it))  for it in X_test[:,0] ])
+    print(X_s.shape)
 
     score = model.evaluate({'state_context_input': X_s_test, 'observation_context_input': X_o_test},
           {'predictions':Y_test }, batch_size=128)
+
 
 
     print(np.min(X_train), np.max(X_train))
