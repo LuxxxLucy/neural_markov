@@ -190,11 +190,15 @@ if __name__ == "__main__":
     model=build_model()
     model.fit({'state_context_input': X_s, 'observation_context_input': X_o},
           {'predictions':Y_train },
-          epochs=50, batch_size=32)
+          epochs=2, batch_size=32)
 
 
-    model.save('model/lstm_enc_model.h5', overwrite=True)
+    # model.save('model/lstm_enc_model.h5', overwrite=True)
     print("Saved model to disk.")
+    json_string = model.to_json()
+    with open("model/lstm_enc_model.json","w") as f:
+        f.write(json_string)
+
 
 
     X_o_test = np.array([  np.vstack(np.array(it))  for it in X_test[:,0] ])
