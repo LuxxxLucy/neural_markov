@@ -195,10 +195,8 @@ if __name__ == "__main__":
 
     # model.save('model/lstm_enc_model.h5', overwrite=True)
     print("Saved model to disk.")
-    json_string = model.to_json()
-    with open("model/lstm_enc_model.json","w") as f:
-        f.write(json_string)
-
+    with open("model/lstm_enc_model.model","wb") as f:
+        pickle.dump(model,f,protocol=2)
 
 
     X_o_test = np.array([  np.vstack(np.array(it))  for it in X_test[:,0] ])
@@ -208,6 +206,7 @@ if __name__ == "__main__":
 
     score = model.evaluate({'state_context_input': X_s_test, 'observation_context_input': X_o_test},
           {'predictions':Y_test }, batch_size=128)
+    pr(score)
 
 
 
