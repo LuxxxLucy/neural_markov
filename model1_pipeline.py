@@ -61,6 +61,7 @@ def build_model():
     # generator.summary()
 
     # now start building network model
+    dropout_rate=0.25
 
     input_1 = Input(shape=(3*VECTOR_DIMENSION,),name="state_context_input")
     encoded_y = Dense(VECTOR_DIMENSION,activation='relu')(input_1)
@@ -69,7 +70,9 @@ def build_model():
     encoded_x_y = LSTM(VECTOR_DIMENSION)(input_2)
 
     merged_vector = keras.layers.concatenate([encoded_x_y, encoded_y], axis=-1)
-    predictions= Dense(class_number+1,activation='relu',name="predictions")(merged_vector)
+    merged_vector = Dropout(dropout_rate)(merged_vector)
+    predictions = Dense(class_number+1,activation='relu',name="predictions")(merged_vector)
+
 
     model = Model(inputs=[input_1,input_2],outputs=predictions)
 
@@ -159,7 +162,6 @@ def construct_train_data(records):
 
     print("data construct okay","train data size ",len(X),len(Y))
 
-
     return np.array(X),np.array(Y)
 
 def find_class_number():
@@ -194,7 +196,7 @@ if __name__ == "__main__":
     model=build_model()
     model.fit({'state_context_input': X_s, 'observation_context_input': X_o},
           {'predictions':Y_train },validation_data=({ 'state_context_input':X_s_test,'observation_context_input':X_o_test } ,{ 'predictions':Y_test }),
-          epochs=50, batch_size=32,verbose=2)
+          epochs=5, batch_size=32,verbose=2)
 
 
     model.save('model/lstm_enc_model.model', overwrite=True)
