@@ -1,9 +1,11 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
 import os,random
 import numpy as np
 # import theano as th
 # import theano.tensor as T
+from keras import metrics
 from keras.utils import np_utils
 import keras.models as models
 from keras.layers import Input,merge
@@ -72,7 +74,7 @@ def build_model():
     model = Model(inputs=[input_1,input_2],outputs=predictions)
 
     opt = Adam(lr=1e-4)
-    model.compile(loss='binary_crossentropy',metrics=['accuracy'],optimizer=opt)
+    model.compile(loss='binary_crossentropy',metrics=[metrics.mae,metrics.categorical_accuracy],optimizer=opt)
     model.summary()
     return model
 
@@ -193,10 +195,10 @@ if __name__ == "__main__":
           epochs=2, batch_size=32)
 
 
-    # model.save('model/lstm_enc_model.h5', overwrite=True)
+    model.save('model/lstm_enc_model.model', overwrite=True)
     print("Saved model to disk.")
-    with open("model/lstm_enc_model.model","wb") as f:
-        pickle.dump(model,f,protocol=2)
+    # with open("model/lstm_enc_model.model","wb") as f:
+    #     pickle.dump(model,f,protocol=2)
 
 
     X_o_test = np.array([  np.vstack(np.array(it))  for it in X_test[:,0] ])
@@ -207,6 +209,8 @@ if __name__ == "__main__":
     score = model.evaluate({'state_context_input': X_s_test, 'observation_context_input': X_o_test},
           {'predictions':Y_test }, batch_size=128)
     pr(score)
+    print()
+    quit()
 
 
 

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import json
 import re
 from pprint import pprint as pr
@@ -25,6 +27,10 @@ def load_raw_data(filename):
         content.append( { "product_id":id,"product_name":name,"score":score,"content":review_content } )
 
     return content
+
+def preprocess_on_review_content(sentence):
+    sentence = [     it for it in jieba.cut(sentence)   ]
+    return custom_strip(sentence)
 
 def load_labeled_data(filename):
     f=open(filename,"r")
@@ -73,9 +79,6 @@ def detect_and_delete(records):
     return result
 
 def spam_or_not(sentence):
-    '''
-    if this sentence is a spam then return false otherwise true(which indicates it's normal
-    '''
     if(len(sentence)<=1):
         return False
     else:
