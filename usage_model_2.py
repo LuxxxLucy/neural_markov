@@ -82,16 +82,14 @@ def get_index(x,x_s):
             return c
         else:
             continue
+    return 0
 
-def conditiaonal_probability(target_word,sentence,keywords,model):
-
+def conditiaonal_probability(target_words,sentence,keywords,model):
+    sentence = preprocess_on_review_content("".join(sentence))
     word_map,vectors=load_meta_model()
     DEFAULT_MISSING_INDEX=str(len(word_map)+1)
     vectors[DEFAULT_MISSING_INDEX]=np.zeros(VECTOR_DIMENSION,dtype=float)
-
     X = list()
-    Y = list()
-
     vectors_of_words = [vectors[word_map[it]] for it in sentence ]
     x1 = np.zeros( (len(vectors_of_words),VECTOR_DIMENSION), dtype=float)
     for count,word in enumerate(vectors_of_words):
@@ -102,24 +100,28 @@ def conditiaonal_probability(target_word,sentence,keywords,model):
     for c,it in enumerate(x2_temp):
         x2[c]+=x2_temp[c]
 
-    x3 = np.array( vectors[word_mapping(target_word,word_map)] )
-    c= get_index(target_word,sentence)
-    x1_before,x1_current,x1_after = padding_zeros(x1,index=c,window_size=5,zero_shape=(100))
-    X.append(np.vstack((x2,x1_before,x1_current,x1_after,x3)))
-    if(target_word in keywords):
-        Y.append(1)
-    else:
-        Y.append(0)
+    for target_word in target_words:
+        try:
+            x3 = np.array( vectors[word_mapping(target_word,word_map)] )
+            x3 = np.array(x3)
+            c= get_index(target_word,sentence)
+            x1_before,x1_current,x1_after = padding_zeros(x1,index=c,window_size=5,zero_shape=(100))
+            X.append(np.vstack((x2,x1_before,x1_current,x1_after,x3)))
+        except:
+            print(c)
+            print(x2.shape)
+            print(x1_after.shape)
+            print(x1_current.shape)
+            print(x1_before.shape)
+            print(x3.shape)
 
     X=np.array(X)
-    Y=np.array(Y)
-
     # X,Y=construct_train_data_raw([sentence],[keys])
     X_o,X_s,X_current = construct_input_data(X)
 
-    prediction=model.predict({'state_context_input': X_s, 'observation_context_input': X_o,'current_input':X_current},
+    predictions=model.predict({'state_context_input': X_s, 'observation_context_input': X_o,'current_input':X_current},
         batch_size=32,verbose=2)
-    return float(prediction[0])
+    return predictions
 
 
 if __name__ == "__main__":
@@ -138,10 +140,10 @@ if __name__ == "__main__":
         print("".join(sentence))
         real_keys=record["key"]
         print("real keywords as")
-        pr(real_keys)
-        for word in sentence:
-            pro=conditiaonal_probability(word,sentence,[],model)
-            print("the proba of "+word+" is a key word is "+str(pro))
+        print(real_keys)
+        words = sentence
+        pro=conditiaonal_probability(words,sentence,[],model)
+        pr(pro)
 
 
     quit()
