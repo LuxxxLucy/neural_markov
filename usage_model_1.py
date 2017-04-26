@@ -94,11 +94,6 @@ def get_new_keyword(words,keys):
     # print(result)
 
 
-
-
-
-
-
 def conditiaonal_probability(sentence,keys,model):
 
     model.predict()

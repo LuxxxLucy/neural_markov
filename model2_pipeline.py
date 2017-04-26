@@ -159,22 +159,28 @@ def padding_zeros(x,index=3,window_size=5,zero_shape=100):
 
 
 def construct_train_data(records):
+
+    sentences = [ record["content"] for record in records ]
+    keywords = [ record["key"] for record in records ]
+
+    return construct_train_data_raw(sentences,keywords)
+
+def construct_train_data_raw(sentences,keywords):
     word_map,vectors=load_meta_model()
     DEFAULT_MISSING_INDEX=str(len(word_map)+1)
     vectors[DEFAULT_MISSING_INDEX]=np.zeros(VECTOR_DIMENSION,dtype=float)
 
     X = list()
     Y = list()
-    for record in tqdm(records):
-        vectors_of_words = [vectors[word_map[it]] for it in record["content"] ]
-
+    for sentence in tqdm(sentences):
+        vectors_of_words = [vectors[word_map[it]] for it in sentence ]
         x1 = np.zeros( (len(vectors_of_words),VECTOR_DIMENSION), dtype=float)
         for count,word in enumerate(vectors_of_words):
             x1[count]+=np.asarray(word,dtype=float)
-        for c,current_word in enumerate(record["content"]):
+        for c,current_word in enumerate(sentence):
 
-            for count,target_word in enumerate(record["key"]):
-                x2_temp = [ np.array(vectors[word_mapping(it,word_map)], dtype=float) for it in record["key"][count:0:-1] ][:CONTEXT_WINDOW_SIZE]
+            for count,target_word in enumerate(keywords):
+                x2_temp = [ np.array(vectors[word_mapping(it,word_map)], dtype=float) for it in keywords[count:0:-1] ][:CONTEXT_WINDOW_SIZE]
                 x2 = np.zeros( (CONTEXT_WINDOW_SIZE,VECTOR_DIMENSION),dtype=float)
                 for c,it in enumerate(x2_temp):
                     x2[c]+=x2_temp[c]
@@ -182,11 +188,10 @@ def construct_train_data(records):
                 x3 = np.array( vectors[word_mapping(current_word,word_map)] )
                 x1_before,x1_current,x1_after = padding_zeros(x1,index=c,window_size=5,zero_shape=(100))
                 X.append(np.vstack((x2,x1_before,x1_current,x1_after,x3)))
-                if(current_word in record["key"]):
+                if(current_word in keywords):
                     Y.append(1)
                 else:
                     Y.append(0)
-
 
     print("data construct okay","train data size ",len(X),len(Y))
 
@@ -206,7 +211,7 @@ def construct_input_data(X):
 if __name__ == "__main__":
 
     records=preprocessing.load_labeled_data("./data/tmp.json")
-    X,Y=construct_train_data(records)
+    X,Y=construct_train_data(records[:5])
     total_number=len(X)
 
 
@@ -233,9 +238,10 @@ if __name__ == "__main__":
     #     pickle.dump(model,f,protocol=2)
 
 
+    score = model.evaluate({'state_context_input': X_s_test, 'observation_context_input': X_o_test,'current_input':X_current_test},
+          {'predictions':Y_test },
+          batch_size=32,verbose=2)
 
-    score = model.evaluate({'state_context_input': X_s_test, 'observation_context_input': X_o_test},
-          {'predictions':Y_test }, batch_size=128)
     pr(score)
     print()
     quit()
