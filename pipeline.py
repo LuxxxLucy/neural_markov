@@ -187,12 +187,14 @@ if __name__ == "__main__":
     X_s =  np.array([  np.concatenate(np.array(it))  for it in X_train[:,0] ])
     print(X_s.shape)
 
+    X_o_test = np.array([  np.vstack(np.array(it))  for it in X_test[:,0] ])
+    X_s_test =  np.array([  np.concatenate(np.array(it))  for it in X_test[:,0] ])
 
 
     model=build_model()
     model.fit({'state_context_input': X_s, 'observation_context_input': X_o},
-          {'predictions':Y_train },
-          epochs=2, batch_size=32)
+          {'predictions':Y_train },validation_data=({ 'state_context_input':X_s_test,'observation_context_input':X_o_test } ,{ 'predictions':Y_test }),
+          epochs=50, batch_size=32,verbose=2)
 
 
     model.save('model/lstm_enc_model.model', overwrite=True)
@@ -201,10 +203,6 @@ if __name__ == "__main__":
     #     pickle.dump(model,f,protocol=2)
 
 
-    X_o_test = np.array([  np.vstack(np.array(it))  for it in X_test[:,0] ])
-    print(X_o.shape)
-    X_s_test =  np.array([  np.concatenate(np.array(it))  for it in X_test[:,0] ])
-    print(X_s.shape)
 
     score = model.evaluate({'state_context_input': X_s_test, 'observation_context_input': X_o_test},
           {'predictions':Y_test }, batch_size=128)
