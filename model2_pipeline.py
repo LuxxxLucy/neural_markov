@@ -35,6 +35,7 @@ from pprint import pprint as pr
 import pickle
 
 CONTEXT_WINDOW_SIZE = 3
+OBSERVATION_WINDOW_SIZE=5
 VECTOR_DIMENSION=100
 MAX_LENGTH=100
 
@@ -62,22 +63,23 @@ def build_model():
 
     # now start building network model
     dropout_rate=0.25
-    input_1 = Input(shape=(3*VECTOR_DIMENSION,),name="state_context_input")
-    input_2 = Input(shape=(None,VECTOR_DIMENSION),name="observation_context_input")
+    input_1 = Input(shape=(CONTEXT_WINDOW_SIZE*VECTOR_DIMENSION,),name="state_context_input")
+    input_2 = Input(shape=(OBSERVATION_WINDOW_SIZE*VECTOR_DIMENSION,),name="observation_context_input")
+    input_3 = Input(shape=(VECTOR_DIMENSION,),name="current_input")
 
     encoded_y = Dense(VECTOR_DIMENSION,activation='relu')(input_1)
+    encoded_x_y = Dense(VECTOR_DIMENSION)(input_2)
 
-    encoded_x_y = LSTM(VECTOR_DIMENSION)(input_2)
-
-    merged_vector = keras.layers.concatenate([encoded_x_y, encoded_y], axis=-1)
+    merged_vector = keras.layers.concatenate([encoded_x_y, encoded_y,input_3], axis=-1)
     merged_vector = Dropout(dropout_rate)(merged_vector)
-    predictions = Dense(class_number+1,activation='relu',name="predictions")(merged_vector)
+    hidden = Dense(VECTOR_DIMENSION,activation='relu')(merged_vector)
+    hidden = Dropout(dropout_rate)(hidden)
+    prediction = Dense(1,activation='relu',name="predictions")(hidden)
 
-
-    model = Model(inputs=[input_1,input_2],outputs=predictions)
+    model = Model(inputs=[input_1,input_2,input_3],outputs=prediction)
 
     opt = Adam(lr=1e-4)
-    model.compile(loss='binary_crossentropy',metrics=[metrics.mae,metrics.categorical_accuracy],optimizer=opt)
+    model.compile(loss='binary_crossentropy',metrics=[metrics.mae,metrics.binary_accuracy],optimizer=opt)
     model.summary()
     return model
 
@@ -135,6 +137,27 @@ def word_mapping(word,word_map):
         DEFAULT_MISSING_INDEX=str(len(word_map)+1)
         return DEFAULT_MISSING_INDEX
 
+def padding_zeros(x,index=3,window_size=5,zero_shape=100):
+    half_size=int((window_size-1)/2)
+    x_before=np.zeros(shape=(half_size,zero_shape),dtype=float)
+    x_after=np.zeros(shape=(half_size,zero_shape),dtype=float)
+    x_current=np.asarray(x[index])
+    error_log=0
+    for i in range(half_size):
+        try:
+            x_before[i]+=x[index-1-i]
+        except:
+            error_log+=1
+        try:
+            x_after[i]+=x[index-1-i]
+        except:
+            error_log+=1
+
+
+    return x_before,x_current,x_after
+
+
+
 def construct_train_data(records):
     word_map,vectors=load_meta_model()
     DEFAULT_MISSING_INDEX=str(len(word_map)+1)
@@ -148,16 +171,21 @@ def construct_train_data(records):
         x1 = np.zeros( (len(vectors_of_words),VECTOR_DIMENSION), dtype=float)
         for count,word in enumerate(vectors_of_words):
             x1[count]+=np.asarray(word,dtype=float)
+        for c,current_word in enumerate(record["content"]):
 
-        for count,target_word in enumerate(record["key"]):
-            x2_temp = [ np.array(vectors[word_mapping(it,word_map)], dtype=float) for it in record["key"][count:0:-1] ][:CONTEXT_WINDOW_SIZE]
-            x2 = np.zeros( (CONTEXT_WINDOW_SIZE,VECTOR_DIMENSION),dtype=float)
-            for c,it in enumerate(x2_temp):
-                x2[c]+=x2_temp[c]
+            for count,target_word in enumerate(record["key"]):
+                x2_temp = [ np.array(vectors[word_mapping(it,word_map)], dtype=float) for it in record["key"][count:0:-1] ][:CONTEXT_WINDOW_SIZE]
+                x2 = np.zeros( (CONTEXT_WINDOW_SIZE,VECTOR_DIMENSION),dtype=float)
+                for c,it in enumerate(x2_temp):
+                    x2[c]+=x2_temp[c]
 
-            target_index=int(word_mapping(target_word,word_map))
-            X.append((x2,x1 ))
-            Y.append(target_index)
+                x3 = np.array( vectors[word_mapping(current_word,word_map)] )
+                x1_before,x1_current,x1_after = padding_zeros(x1,index=c,window_size=5,zero_shape=(100))
+                X.append(np.vstack((x2,x1_before,x1_current,x1_after,x3)))
+                if(current_word in record["key"]):
+                    Y.append(1)
+                else:
+                    Y.append(0)
 
 
     print("data construct okay","train data size ",len(X),len(Y))
@@ -169,37 +197,37 @@ def find_class_number():
     print("class number is ",len(word_map))
     return len(word_map)+1
 
+def construct_input_data(X):
+    X_s = np.array([  np.concatenate(np.array(it))  for it in X[:,:CONTEXT_WINDOW_SIZE] ])
+    X_o =  np.array([  np.concatenate(np.array(it))  for it in X[:,CONTEXT_WINDOW_SIZE:CONTEXT_WINDOW_SIZE+OBSERVATION_WINDOW_SIZE] ])
+    X_current =  np.array([  np.concatenate(np.array(it))  for it in X[:,CONTEXT_WINDOW_SIZE+OBSERVATION_WINDOW_SIZE:] ])
+    return X_o,X_s,X_current
+
 if __name__ == "__main__":
 
     records=preprocessing.load_labeled_data("./data/tmp.json")
-    class_number=find_class_number()
     X,Y=construct_train_data(records)
     total_number=len(X)
-    Y = keras.utils.to_categorical(Y, num_classes=class_number+1)
+
+
 
     X_train = X[:int(total_number*0.9),:]
     Y_train = Y[:int(total_number*0.9)]
     X_test = X[int(total_number*0.9):,:]
     Y_test = Y[int(total_number*0.9):]
 
+    X_o,X_s,X_current = construct_input_data(X_train)
 
-
-    X_o = np.array([  np.vstack(np.array(it))  for it in X_train[:,0] ])
-    print(X_o.shape)
-    X_s =  np.array([  np.concatenate(np.array(it))  for it in X_train[:,0] ])
-    print(X_s.shape)
-
-    X_o_test = np.array([  np.vstack(np.array(it))  for it in X_test[:,0] ])
-    X_s_test =  np.array([  np.concatenate(np.array(it))  for it in X_test[:,0] ])
+    X_o_test,X_s_test,X_current_test = construct_input_data(X_test)
 
 
     model=build_model()
-    model.fit({'state_context_input': X_s, 'observation_context_input': X_o},
-          {'predictions':Y_train },validation_data=({ 'state_context_input':X_s_test,'observation_context_input':X_o_test } ,{ 'predictions':Y_test }),
-          epochs=5, batch_size=32,verbose=2)
+    model.fit({'state_context_input': X_s, 'observation_context_input': X_o,'current_input':X_current},
+          {'predictions':Y_train },validation_data=({ 'state_context_input':X_s_test,'observation_context_input':X_o_test ,'current_input':X_current_test} ,{ 'predictions':Y_test }),
+          epochs=50, batch_size=32,verbose=2)
 
 
-    model.save('model/lstm_enc_model.model', overwrite=True)
+    model.save('model/dis_enc_model.model', overwrite=True)
     print("Saved model to disk.")
     # with open("model/lstm_enc_model.model","wb") as f:
     #     pickle.dump(model,f,protocol=2)

@@ -24,7 +24,7 @@ from keras.utils import np_utils
 from tqdm import tqdm
 
 from preprocessing import *
-from pipeline import *
+from model1_pipeline import *
 from pprint import pprint as pr
 import pickle
 
@@ -106,7 +106,7 @@ def conditiaonal_probability(sentence,keys,model):
     return
 
 def construct_input_data(X):
-    X_o = np.array([  np.vstack(np.array(it))  for it in X[:,0] ])
+    X_o = np.array([  np.vstack(np.asarray(it))  for it in X[:,1] ])
     X_s =  np.array([  np.concatenate(np.array(it))  for it in X[:,0] ])
     return X_o,X_s
 

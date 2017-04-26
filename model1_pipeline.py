@@ -173,7 +173,7 @@ if __name__ == "__main__":
 
     records=preprocessing.load_labeled_data("./data/tmp.json")
     class_number=find_class_number()
-    X,Y=construct_train_data(records)
+    X,Y=construct_train_data(records[:2])
     total_number=len(X)
     Y = keras.utils.to_categorical(Y, num_classes=class_number+1)
 
@@ -183,8 +183,8 @@ if __name__ == "__main__":
     Y_test = Y[int(total_number*0.9):]
 
 
-
-    X_o = np.array([  np.vstack(np.array(it))  for it in X_train[:,0] ])
+    print(len(X_train))
+    X_o_test = np.array([  np.vstack(np.array(it))  for it in X_train[:,0] ])
     print(X_o.shape)
     X_s =  np.array([  np.concatenate(np.array(it))  for it in X_train[:,0] ])
     print(X_s.shape)
