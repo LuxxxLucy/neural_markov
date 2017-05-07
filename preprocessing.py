@@ -68,7 +68,7 @@ def key_word_extract(s):
     #     print('%s %s' % (x, w))
     # for x, w in jieba.analyse.extract_tags(s, withWeight=True):
     #     print('%s %s' % (x, w))
-    return jieba.analyse.textrank(s,withWeight=False)[:4]
+    return jieba.analyse.textrank(s,withWeight=False)[:10]
 
 def detect_and_delete(records):
     result=list()
@@ -147,6 +147,45 @@ def train_w2v(sentences):
         pickle.dump(model,f)
 
     return
+
+def process(query_id,data):
+    total_com=len(data)
+    result=dict()
+    try:
+        valid_com_num,key_com=delete_and_extract(data)
+        status="ok"
+        result["data"]=dict()
+        result["data"]["commentsTotalNum"]=total_com
+        result["data"]["validComNum"]=valid_com_num
+        result["data"]["invalidComNum"]=total_com - valid_com_num
+        result["data"]["validPercent"]=valid_com_num / total_com
+        result["data"]["invalidPercent"]=invalid_com_num / total_com
+        result["data"]["key_com"]=key_com
+    except:
+        status="error happened internal server error"
+
+    result["query_id"]=query_id
+    result["statue"]=status
+
+    # now turns a dictionary into json string
+    # result=json.dumps(result)
+
+    return result
+
+def delete_and_extract(records):
+    content=list()
+
+    for line in records:
+        id= line["product_id"]
+        name= line["product_name"]
+        score= line["score"]
+        review_content= [it for it in jieba.cut(line["content"])]
+        review_content=custom_strip(review_content)
+        content.append( { "product_id":id,"product_name":name,"score":score,"content":review_content } )
+    valid_record = detect_and_delete(records)
+
+    com_keys=key_word_extract( ".".join([ "".join(rec["content"]) for rec in valid_record ]) )
+    return len(valid_record),com_keys
 
 
 if __name__ == "__main__":
