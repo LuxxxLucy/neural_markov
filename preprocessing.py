@@ -148,21 +148,32 @@ def train_w2v(sentences):
 
     return
 
-def process(query_id,data):
+def process(data):
+    query_id=data["queryID"]
+    data_records=data["data"]
     total_com=len(data)
     result=dict()
-    try:
-        valid_com_num,key_com=delete_and_extract(data)
-        status="ok"
-        result["data"]=dict()
-        result["data"]["commentsTotalNum"]=total_com
-        result["data"]["validComNum"]=valid_com_num
-        result["data"]["invalidComNum"]=total_com - valid_com_num
-        result["data"]["validPercent"]=valid_com_num / total_com
-        result["data"]["invalidPercent"]=invalid_com_num / total_com
-        result["data"]["key_com"]=key_com
-    except:
-        status="error happened internal server error"
+    valid_com_num,key_com=delete_and_extract(data_records)
+    status="ok"
+    result["data"]=dict()
+    result["data"]["commentsTotalNum"]=total_com
+    result["data"]["validComNum"]=valid_com_num
+    result["data"]["invalidComNum"]=total_com - valid_com_num
+    result["data"]["validPercent"]=valid_com_num / total_com
+    result["data"]["invalidPercent"]= (total_com-valid_com_num) / total_com
+    result["data"]["key_com"]=key_com
+    # try:
+    #     valid_com_num,key_com=delete_and_extract(data)
+    #     status="ok"
+    #     result["data"]=dict()
+    #     result["data"]["commentsTotalNum"]=total_com
+    #     result["data"]["validComNum"]=valid_com_num
+    #     result["data"]["invalidComNum"]=total_com - valid_com_num
+    #     result["data"]["validPercent"]=valid_com_num / total_com
+    #     result["data"]["invalidPercent"]=invalid_com_num / total_com
+    #     result["data"]["key_com"]=key_com
+    # except:
+    #     status="error happened internal server error"
 
     result["query_id"]=query_id
     result["statue"]=status
@@ -176,7 +187,7 @@ def delete_and_extract(records):
     content=list()
 
     for line in records:
-        id= line["product_id"]
+        id = line["product_id"]
         name= line["product_name"]
         score= line["score"]
         review_content= [it for it in jieba.cut(line["content"])]
@@ -185,7 +196,13 @@ def delete_and_extract(records):
     valid_record = detect_and_delete(records)
 
     com_keys=key_word_extract( ".".join([ "".join(rec["content"]) for rec in valid_record ]) )
-    return len(valid_record),com_keys
+    keys=dict()
+    for i in range(10):
+        try:
+            keys["KeyCom"+str(i+1)]=com_keys[i]
+        except:
+            keys["KeyCom"+str(i+1)]=""
+    return len(valid_record),keys
 
 
 if __name__ == "__main__":

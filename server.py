@@ -10,31 +10,31 @@ from preprocessing import *
 app = Flask(__name__)
 
 
-@app.route("/",method=['POST'])
+@app.route("/",methods=['POST'])
 def index():
     # return app.send_static_file('base.html')
     for it in request.files:
         f=request.files[it]
         f.save('./'+"temp_working.json")
+        print("got a sequence of data")
         records=json.load(open("./temp_working.json"))
-
-        result= process(1112,records)
+        result= process(records)
 
         r=requests.post("115.159.91.188/statue",data=result)
 
     return "OKay"
 
 
-@app.route("/test",method=['POST','GET'])
-def index():
-    send_test()
-    return "OKay"
+@app.route("/test",methods=['GET'])
+def test():
+    return send_test()
+
 def send_test():
 
     result={
-    "queryID": 1000
+    "queryID": 1000,
     "statue": 'ok',
-    data:{
+    "data":{
         "commentsTotalNum": 10000,
         "validComNum": 7500,
         "invalidComNum": 2500,
@@ -54,12 +54,25 @@ def send_test():
         }
     }
     }
-    r=requests.post("115.159.91.188:3000/statue",data=result)
+    # r=requests.post("115.159.91.188:3000/statue",data=result)
+
+    return json.dumps(result)
+
+def process_example():
+    records=json.load(open("./data/example.json"))
+    d={}
+    d['queryID']=1
+    d["data"]=records
+    result= process(d)
+    pr(result)
 
     return
 
+
 if __name__ == '__main__':
-    server_ip='10.214.25.140'
+    # server_ip='10.214.25.140'
+    process_example()
+    server_ip='10.189.134.112'
     server_port=8082
     print("happliy start up!")
     app.run( host=server_ip,port=server_port )
